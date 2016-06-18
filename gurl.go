@@ -6,8 +6,15 @@ import (
     "io/ioutil"
     "net/http"
     "net/url"
+    "encoding/json"
     "github.com/garyburd/redigo/redis"
 )
+
+type Config struct {
+    Port int
+    RedisHost string
+    RedisPort int
+}
 
 const cmap = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
@@ -28,7 +35,7 @@ func id2short(n int) string {
   return reverse(r)
 }
 
-func handler(w http.ResponseWriter, r *http.Request, c redis.Conn) {
+func handler(w http.ResponseWriter, r *http.Request, c redis.Conn, conf Config) {
     if r.Method == "GET" {
         key := r.URL.Path[1:]
         if key != "" {
@@ -61,7 +68,7 @@ func handler(w http.ResponseWriter, r *http.Request, c redis.Conn) {
                 if err != nil {
                     fmt.Fprintf(w, "error creating shortened URL")
                 }
-                fmt.Fprintf(w, "<html><head><title>created</title></head><body>created %d <a href=\"/%s\">http://localhost:8080/%s</a> for %s</body></html>", n, key, key, targetUrl)
+                fmt.Fprintf(w, "<html><head><title>created</title></head><body>created(id %d) short url <a href=\"/%s\">%s</a> for %s</body></html>", n, key, key, targetUrl)
             }
     	} else {
             fmt.Fprintf(w, "error creating shortened URL")
@@ -69,15 +76,29 @@ func handler(w http.ResponseWriter, r *http.Request, c redis.Conn) {
     }
 }
 
+func getconf(conffile string) Config {
+    b, err := ioutil.ReadFile(conffile)
+    if err != nil {
+        log.Fatal("error reading config")
+    }
+    conf := Config{}
+    err = json.Unmarshal(b, &conf)
+    if err != nil {
+        log.Fatal("bad config file")
+    }
+    return conf
+}
+
 func main() {
-    c, err := redis.Dial("tcp", ":6379")
+    conf := getconf("config.json")
+    c, err := redis.Dial("tcp", fmt.Sprintf("%s:%d", conf.RedisHost, conf.RedisPort))
     if err != nil {
         // handle error
         log.Fatal("Cannot connect to redis exiting")
     }
     defer c.Close()
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        handler(w, r, c)
+        handler(w, r, c, conf)
     })
-    http.ListenAndServe(":8080", nil)
+    http.ListenAndServe(fmt.Sprintf(":%d", conf.Port), nil)
 }
