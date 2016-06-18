@@ -1,6 +1,7 @@
 package main
 
 import (
+    "log"
     "fmt"
     "io/ioutil"
     "net/http"
@@ -72,6 +73,7 @@ func main() {
     c, err := redis.Dial("tcp", ":6379")
     if err != nil {
         // handle error
+        log.Fatal("Cannot connect to redis exiting")
     }
     defer c.Close()
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
